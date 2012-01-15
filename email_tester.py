@@ -1,8 +1,11 @@
+from email.header import decode_header
 import os
 
 import webapp2
 from google.appengine.ext import db
 from google.appengine.api import mail
+
+HOSTNAME = os.environ['SERVER_NAME'].replace('appspot', 'appspotmail')
 
 class Email(db.Model):
     date = db.DateTimeProperty(auto_now_add=True)
@@ -19,15 +22,18 @@ class MainPage(webapp2.RequestHandler):
                 'You can check your inbox at /inbox/anything\n'
                 'Check your message at /message/msgkey\n'
                 'Delete your message at /delete/msgkey\n'
-                % os.environ['SERVER_NAME'])
+                % HOSTNAME)
 
 
 class MailHandler(webapp2.RequestHandler):
     def post(self, receiver):
         message = mail.InboundEmailMessage(self.request.body)
+        subject = message.subject
+        if subject.startswith('=?'):
+            subject = decode_header(subject)[0][0]
         email = Email(
                 address=receiver,
-                subject=message.subject,
+                subject=subject,
                 message=message.original.as_string())
         email.put()
 
@@ -48,8 +54,7 @@ class Delete(webapp2.RequestHandler):
 class Inbox(webapp2.RequestHandler):
     def get(self, address):
         query = db.Query(Email)
-        query.filter('address =', '%s@%s' % (address,
-            os.environ['SERVER_NAME']))
+        query.filter('address =', '%s@%s' % (address, HOSTNAME))
         query.order('-date')
 
         self.response.headers['Content-Type'] = 'text/html'
