@@ -28,7 +28,10 @@ class MainPage(webapp2.RequestHandler):
 class MailHandler(webapp2.RequestHandler):
     def post(self, receiver):
         message = mail.InboundEmailMessage(self.request.body)
-        subject = message.subject
+        try:
+            subject = message.subject
+        except AttributeError:
+            subject = '(No Subject)'
         if subject.startswith('=?'):
             subject = decode_header(subject)[0][0]
         email = Email(
