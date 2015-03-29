@@ -10,3 +10,4 @@ inbound_services:
 handlers:
 - url: /.*
   script: email_tester.app
+  secure: always
