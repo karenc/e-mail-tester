@@ -1,3 +1,5 @@
+import cgi
+import email
 from email.header import decode_header
 import os
 
@@ -34,11 +36,11 @@ class MailHandler(webapp2.RequestHandler):
             subject = '(No Subject)'
         if subject.startswith('=?'):
             subject = decode_header(subject)[0][0]
-        email = Email(
-                address=receiver,
-                subject=subject,
-                message=message.original.as_string())
-        email.put()
+        mail = Email(
+            address=receiver,
+            subject=subject,
+            message=message.original.as_string())
+        mail.put()
 
 
 class Message(webapp2.RequestHandler):
@@ -61,16 +63,40 @@ class Inbox(webapp2.RequestHandler):
         query.order('-date')
 
         self.response.headers['Content-Type'] = 'text/html'
-        self.response.out.write('<html><head>\n'
-                '<title>Inbox for %s</title>\n'
-                '</head>\n' % address)
+        self.response.out.write(u'''
+<html>
+    <head>
+        <title>Inbox for {}</title>
+        <style type="text/css">
+            table {{
+                border-collapse: collapse;
+            }}
+            tr:nth-child(even) {{
+                background-color: #EEE;
+            }}
+            th, td {{
+                padding: 5px 10px;
+            }}
+        </style>
+    </head>'''.format(address))
         self.response.out.write('<body>\n'
                 '<h1>Inbox for %s</title>\n'
                 '<table>\n' % address)
-        self.response.out.write('<tr><th>Subject</th></tr>\n')
-        for email in query:
-            self.response.out.write('<tr><td><a href="/message/%s">%s</a></td>'
-                    '</tr>' % (email.key(), email.subject))
+        self.response.out.write(
+            '<tr>'
+            '<th>Delete</th>'
+            '<th>Sender</th>'
+            '<th>Subject</th></tr>\n')
+        for mail_obj in query:
+            mail = email.message_from_string(mail_obj.message)
+            self.response.out.write(
+                u'<tr>'
+                u'<td><a href="/delete/{key}">[X]</a></td>'
+                u'<td>{sender}</td>'
+                u'<td><a href="/message/{key}">{subject}</a></td>'
+                u'</tr>'.format(key=mail_obj.key(),
+                                sender=cgi.escape(mail.get('From')),
+                                subject=cgi.escape(mail_obj.subject)))
         self.response.out.write('</table>\n</body>\n</html>\n')
 
 
