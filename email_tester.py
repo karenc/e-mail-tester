@@ -1,6 +1,7 @@
 import cgi
 import email
 from email.header import decode_header
+import json
 import os
 
 import webapp2
@@ -14,6 +15,11 @@ class Email(db.Model):
     address = db.StringProperty()
     subject = db.TextProperty()
     message = db.TextProperty()
+
+
+class ApiKey(db.Model):
+    name = db.StringProperty()
+    apikey = db.StringProperty()
 
 
 class MainPage(webapp2.RequestHandler):
@@ -36,11 +42,10 @@ class MailHandler(webapp2.RequestHandler):
             subject = '(No Subject)'
         if subject.startswith('=?'):
             subject = decode_header(subject)[0][0]
-        mail = Email(
+        Email(
             address=receiver,
             subject=subject,
-            message=message.original.as_string())
-        mail.put()
+            message=message.original.as_string()).put()
 
 
 class Message(webapp2.RequestHandler):
@@ -112,6 +117,22 @@ class PlainText(webapp2.RequestHandler):
         self.response.out.write(Email.get(msgkey).message)
 
 
+class SendMail(webapp2.RequestHandler):
+    def post(self, apikey):
+        apikey = list(ApiKey.all().filter('apikey = ', apikey).run(limit=1))
+        if not apikey:
+            self.abort(404)
+        apikey = apikey[0]
+        args = json.loads(self.request.body)
+        mail.send_mail(sender='{}@{}'.format(apikey.name, HOSTNAME),
+                       to=args['to'],
+                       subject=args.get('subject', ''),
+                       body=args.get('body', ''),
+                       html=args.get('html', ''))
+        self.response.headers['Content-Type'] = 'text/plain'
+        self.response.out.write('Email sent')
+
+
 class Delete(webapp2.RequestHandler):
     def get(self, msgkey):
         Email.get(msgkey).delete()
@@ -170,4 +191,5 @@ app = webapp2.WSGIApplication([
     ('/plain-text/(.+)', PlainText),
     ('/inbox/(.+)', Inbox),
     ('/delete/(.+)', Delete),
+    ('/send-mail/(.+)', SendMail),
     ], debug=True)
